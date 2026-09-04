@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Code Explainer</title>
+    <meta
+      name="description"
+      content="Paste code and get a beginner-friendly explanation powered by Groq."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,640&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <div class="page-bg" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">AI Code Explainer</span>
+        <span class="badge-tag">CS Education</span>
+      </div>
+      <div class="topbar-right">
+        <p class="topbar-note">Pedagogical Code Tutor</p>
+        <button type="button" class="theme-toggle-btn" id="theme-toggle" title="Toggle dark/light theme">
+          <span class="theme-toggle-icon" id="theme-icon">🌙</span>
+          <span class="theme-toggle-text" id="theme-text">Dark</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="hero">
+        <h1>Understand any snippet in plain English.</h1>
+        <p class="lede">
+          Paste code, hit Explain, and get what it does, the key ideas behind it,
+          and a few thoughtful improvements — written for beginners.
+        </p>
+
+        <div class="mode-selector" role="radiogroup" aria-label="Analysis Mode">
+          <span class="mode-label">Mode:</span>
+          <button type="button" class="mode-btn active" data-mode="beginner">
+            <span>🎓 Beginner Walkthrough</span>
+          </button>
+          <button type="button" class="mode-btn" data-mode="bugfix">
+            <span>🐞 Bug Finder &amp; Fix</span>
+          </button>
+          <button type="button" class="mode-btn" data-mode="complexity">
+            <span>⚡ Big-O &amp; Complexity</span>
+          </button>
+        </div>
+      </section>
+
+      <div class="workspace">
+        <article class="card editor-card">
+          <div class="card-head">
+            <div>
+              <h2>Your code</h2>
+              <p class="card-sub">Any language. Keep it under 12,000 characters.</p>
+            </div>
+            <div class="card-pills">
+              <span class="pill lang-pill" id="lang-detected">Auto-detect</span>
+              <span class="pill" id="char-count">0 chars</span>
+            </div>
+          </div>
+
+          <div class="sample-chips">
+            <span class="chips-label">Try sample:</span>
+            <button type="button" class="chip" data-sample="python-recursion">🐍 Recursion</button>
+            <button type="button" class="chip" data-sample="js-async">🌐 JS Async</button>
+            <button type="button" class="chip" data-sample="buggy-code">🐞 Spot Bug</button>
+            <button type="button" class="chip" data-sample="binary-search">⚡ Binary Search</button>
+          </div>
+
+          <label class="sr-only" for="code-input">Source code</label>
+          <textarea
+            id="code-input"
+            name="code"
+            spellcheck="false"
+            placeholder="def greet(name):&#10;    return f'Hello, {name}!'"
+          ></textarea>
+
+          <div class="actions">
+            <button type="button" class="btn btn-ghost" id="clear-btn">
+              Clear
+            </button>
+            <button type="button" class="btn btn-primary" id="explain-btn">
+              <span class="btn-label">Explain</span>
+              <span class="btn-spinner" hidden></span>
+            </button>
+          </div>
+        </article>
+
+        <article class="card result-card">
+          <div class="card-head">
+            <div>
+              <h2>Explanation</h2>
+              <p class="card-sub" id="result-sub">What it does · concepts · improvements</p>
+            </div>
+            <div class="result-actions">
+              <button type="button" class="btn-copy" id="copy-btn" title="Copy to clipboard" hidden>
+                <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                <span class="copy-text">Copy</span>
+              </button>
+              <button type="button" class="btn-copy" id="download-btn" title="Download explanation as Markdown" hidden>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Export .md</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="status" class="status" hidden></div>
+          <div id="result" class="result" hidden></div>
+
+          <!-- Interactive Follow-Up Q&A Tutor Box -->
+          <div class="followup-box" id="followup-box" hidden>
+            <div class="followup-divider">
+              <span class="followup-divider-badge">💬 Ask Tutor</span>
+              <span class="followup-divider-text">Have a question about this code or explanation?</span>
+            </div>
+            <div id="followup-thread" class="followup-thread"></div>
+            <form class="followup-input-row" id="followup-form">
+              <input
+                type="text"
+                id="followup-input"
+                placeholder="e.g. Can you explain line 3 with a simple real-life analogy?"
+                autocomplete="off"
+                required
+              />
+              <button type="submit" class="btn btn-primary btn-followup" id="followup-btn">
+                <span class="followup-btn-label">Ask</span>
+                <span class="followup-btn-spinner" hidden></span>
+              </button>
+            </form>
+          </div>
+
+          <div id="empty-state" class="empty-state">
+            <div class="empty-icon" aria-hidden="true"></div>
+            <p>Your walkthrough will appear here after you explain a snippet.</p>
+          </div>
+        </article>
+      </div>
+
+      <!-- Recent History Section -->
+      <section class="history-section" id="history-section" hidden>
+        <div class="history-header">
+          <div class="history-title-group">
+            <span class="history-badge">History</span>
+            <h3>Recent Walkthroughs</h3>
+            <span class="history-count" id="history-count">0 saved</span>
+          </div>
+          <button type="button" class="btn-clear-history" id="clear-history-btn">Clear all</button>
+        </div>
+        <div class="history-list" id="history-list"></div>
+      </section>
+    </main>
+
+    <!-- Floating AI Tutor Trigger Button -->
+    <button type="button" class="floating-tutor-btn" id="open-tutor-btn" aria-label="Open AI Tutor Panel">
+      <span class="tutor-btn-pulse" aria-hidden="true"></span>
+      <span class="tutor-btn-icon">🎓</span>
+      <span class="tutor-btn-label">AI Tutor Chat</span>
+    </button>
+
+    <!-- Slide-Out AI Tutor Drawer & Backdrop -->
+    <div class="tutor-backdrop" id="tutor-backdrop" hidden></div>
+    <aside class="tutor-drawer" id="tutor-drawer" aria-label="AI Tutor Chat" hidden>
+      <div class="drawer-header">
+        <div class="drawer-title-group">
+          <div class="drawer-avatar">🎓</div>
+          <div>
+            <h4>CS AI Tutor</h4>
+            <p class="drawer-status">
+              <span class="status-dot"></span> Online · Ask Anything
+            </p>
+          </div>
+        </div>
+        <button type="button" class="drawer-close-btn" id="close-tutor-btn" aria-label="Close tutor panel">✕</button>
+      </div>
+
+      <div class="drawer-chips">
+        <span class="drawer-chips-title">Quick doubts:</span>
+        <button type="button" class="drawer-chip" data-ask="Explain like I'm 5 with an analogy">💡 ELI5</button>
+        <button type="button" class="drawer-chip" data-ask="Are there any subtle bugs or edge cases in my code?">🐞 Spot Bugs</button>
+        <button type="button" class="drawer-chip" data-ask="How can I optimize this code for performance?">⚡ Optimize</button>
+        <button type="button" class="drawer-chip" data-ask="What is the Big-O time and space complexity?">📊 Big-O</button>
+      </div>
+
+      <div class="drawer-messages" id="drawer-messages">
+        <div class="tutor-chat-bubble tutor-bubble">
+          <strong>🎓 Tutor:</strong>
+          <p>Hello! I'm your 24/7 Computer Science AI Tutor. You can ask me any programming question, algorithm doubt, concept explanation, or get help with the code in your editor. What would you like to explore?</p>
+        </div>
+      </div>
+
+      <form class="drawer-input-container" id="drawer-chat-form">
+        <input
+          type="text"
+          id="drawer-chat-input"
+          placeholder="Ask any programming doubt..."
+          autocomplete="off"
+          required
+        />
+        <button type="submit" class="drawer-send-btn" id="drawer-send-btn" title="Send question">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </form>
+    </aside>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+  </body>
+</html>
