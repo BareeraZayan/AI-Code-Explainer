@@ -14,16 +14,57 @@ app = Flask(
     static_folder=os.path.join(BASE_DIR, "static"),
 )
 
-# Groq client reads the same key used in the Groq console.
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-# Default matches the assignment; override with GROQ_MODEL if the ID is retired.
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-
-print("DEBUG - Loaded key starts with:", GROQ_API_KEY[:15] if GROQ_API_KEY else "MISSING")
-print("DEBUG - Model:", GROQ_MODEL)
-
 # Limit how much code we send so one request cannot blow the token budget.
 MAX_CODE_CHARS = 12_000
+
+DEFAULT_MODEL = "openai/gpt-oss-120b"
+FALLBACK_MODELS = [
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
+    "llama-3.3-70b-versatile",
+]
+
+
+def get_groq_client():
+    """Create a Groq client, dynamically reading the key."""
+    api_key = (os.getenv("GROQ_API_KEY") or "").strip()
+    if not api_key:
+        return None
+    return Groq(api_key=api_key)
+
+
+def get_groq_model():
+    """Retrieve active Groq model with fallback to available production models."""
+    model = (os.getenv("GROQ_MODEL") or "").strip()
+    if not model or model == "llama-3.3-70b-versatile":
+        return DEFAULT_MODEL
+    return model
+
+
+def chat_complete_with_fallback(client, messages, temperature=0.3, max_tokens=2048):
+    """Execute chat completion with automatic fallback if a model is retired or unavailable."""
+    primary = get_groq_model()
+    candidates = [primary] + [m for m in FALLBACK_MODELS if m != primary]
+
+    last_exc = None
+    for model_name in candidates:
+        try:
+            return client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except Exception as exc:
+            err_msg = str(exc).lower()
+            last_exc = exc
+            if "model_not_found" in err_msg or "does not exist" in err_msg:
+                continue
+            raise exc
+    if last_exc:
+        raise last_exc
+
 
 SYSTEM_PROMPTS = {
     "beginner": """You are a patient programming tutor. Explain the given source
@@ -55,11 +96,6 @@ Cover these sections using markdown headings:
 }
 
 
-def get_groq_client():
-    """Create a Groq client, or None if the API key is missing."""
-    if not GROQ_API_KEY:
-        return None
-    return Groq(api_key=GROQ_API_KEY)
 
 
 @app.route("/")
@@ -109,8 +145,8 @@ def explain():
     )
 
     try:
-        completion = client.chat.completions.create(
-            model=GROQ_MODEL,
+        completion = chat_complete_with_fallback(
+            client=client,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
@@ -169,8 +205,8 @@ def followup():
     )
 
     try:
-        completion = client.chat.completions.create(
-            model=GROQ_MODEL,
+        completion = chat_complete_with_fallback(
+            client=client,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
@@ -227,8 +263,8 @@ def tutor_chat():
     messages.append({"role": "user", "content": message})
 
     try:
-        completion = client.chat.completions.create(
-            model=GROQ_MODEL,
+        completion = chat_complete_with_fallback(
+            client=client,
             messages=messages,
             temperature=0.35,
             max_tokens=1024,
